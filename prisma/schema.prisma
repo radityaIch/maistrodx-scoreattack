@@ -1,0 +1,256 @@
+// ============================================================================
+// maimai score-attack tournament platform — Prisma schema (PLAN §3)
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// Better Auth core tables
+// ============================================================================
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  emailVerified    Boolean  @default(false)
+  name             String?
+  image            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // ---- app extensions ----
+  role             UserRole @default(PLAYER)
+  displayName      String?
+  maimaiFriendCode String?
+
+  accounts           Account[]
+  sessions           Session[]
+  submissions        ScoreSubmission[]
+  auditLogs          AuditLog[]              @relation("AuditActor")
+  createdTournaments Tournament[]           @relation("TournamentCreator")
+
+  @@index([role])
+}
+
+enum UserRole {
+  PLAYER
+  ADMIN
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  issuer                String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([issuer, accountId])
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+// ============================================================================
+// maimai catalog (synced from CloudFront JSON, see PLAN §7)
+// ============================================================================
+
+model Song {
+  songId      String    @id // title string from JSON — this IS the key
+  title       String
+  artist      String
+  category    String
+  bpm         Int?
+  imageName   String
+  version     String
+  releaseDate DateTime?
+  isNew       Boolean   @default(false)
+  isLocked    Boolean   @default(false)
+  raw         Json
+  syncedAt    DateTime  @default(now())
+
+  sheets Sheet[]
+
+  @@index([category])
+  @@index([version])
+}
+
+model Sheet {
+  id                 String @id @default(cuid())
+  songId             String
+  type               String // "std" | "dx"
+  difficulty         String // basic | advanced | expert | master | remaster
+  level              String
+  levelValue         Float
+  internalLevel      String?
+  internalLevelValue Float?
+  noteCounts         Json
+  regions            Json
+  version            String
+
+  song        Song               @relation(fields: [songId], references: [songId])
+  tracks      TournamentTrack[]
+  submissions ScoreSubmission[]
+
+  @@unique([songId, type, difficulty])
+  @@index([difficulty])
+}
+
+// ============================================================================
+// Tournament core (PLAN §3)
+// ============================================================================
+
+model Tournament {
+  id                  String           @id @default(cuid())
+  slug                String           @unique
+  name                String
+  description         String?
+  status              TournamentStatus @default(DRAFT)
+  registrationOpensAt DateTime
+  submissionDeadline  DateTime
+  scoringRule         ScoringRule
+  bestN               Int? // required when scoringRule = BEST_N
+  maxAchievementPct   Float            @default(101.0)
+  maxSubsPerTrack     Int              @default(1)
+  requireProof        Boolean          @default(true)
+
+  // ---- Theme (page-builder, PLAN §9a) ----
+  heroImageUrl        String?
+  heroImagePublicId   String?
+  mascotImageUrl      String?
+  mascotImagePublicId String?
+  mascotPosition      String           @default("bottom-right")
+  logoOverlayUrl      String?
+  logoOverlayPublicId String?
+  accentColor         String? // hex e.g. "#FF2E88"
+  sectionsOrder       String[]         @default(["hero", "ruleset", "tracks", "leaderboard", "awards", "contestants"])
+  rulesetMarkdown     String?          @db.Text
+
+  createdById String
+  createdBy   User   @relation("TournamentCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  tracks      TournamentTrack[]
+  submissions ScoreSubmission[]
+
+  @@index([status, submissionDeadline])
+}
+
+enum TournamentStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  FINALIZED
+}
+
+enum ScoringRule {
+  BEST_N
+  AGGREGATE
+}
+
+model TournamentTrack {
+  id           String  @id @default(cuid())
+  tournamentId String
+  sheetId      String
+  weight       Decimal @default(1.0)
+
+  tournament  Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  sheet       Sheet             @relation(fields: [sheetId], references: [id])
+  submissions ScoreSubmission[]
+
+  @@unique([tournamentId, sheetId])
+  @@index([tournamentId])
+}
+
+// ============================================================================
+// Player submissions (PLAN §3 + §8)
+// ============================================================================
+
+model ScoreSubmission {
+  id             String           @id @default(cuid())
+  tournamentId   String
+  trackId        String
+  sheetId        String // denormalized for ranking index
+  playerId       String
+  achievementPct Decimal          @db.Decimal(5, 2)
+  screenshotUrl  String // NOT NULL — required per decision #5
+  note           String?
+  status         SubmissionStatus @default(PENDING)
+  submittedAt    DateTime         @default(now())
+  decidedAt      DateTime?
+  decidedById    String?
+  decideReason   String?
+
+  tournament Tournament      @relation(fields: [tournamentId], references: [id])
+  track      TournamentTrack @relation(fields: [trackId], references: [id])
+  sheet      Sheet           @relation(fields: [sheetId], references: [id])
+  player     User            @relation(fields: [playerId], references: [id])
+
+  @@unique([playerId, trackId]) // upsert target
+  @@index([tournamentId, sheetId, achievementPct(sort: Desc)])
+  @@index([playerId, tournamentId])
+  @@index([status])
+}
+
+enum SubmissionStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+// ============================================================================
+// Audit trail (PLAN §3)
+// ============================================================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  action     String
+  targetType String?
+  targetId   String?
+  payload    Json?
+  createdAt  DateTime @default(now())
+
+  actor User @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+}
