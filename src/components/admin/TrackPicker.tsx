@@ -243,7 +243,7 @@ export function TrackPicker({
         <ul className="mt-2 max-h-80 overflow-y-auto rounded-md border border-[color:var(--color-border)]">
           {results.length === 0 && !searching ? (
             <li className="px-3 py-4 text-center text-sm text-[color:var(--color-muted-foreground)]">
-              No synced catalog matches. You can still add a custom AstroDX track below.
+              No synced catalog matches yet. Run the catalog sync from your maimai API source, then search again; or add a custom AstroDX track below.
             </li>
           ) : (
             results.map((s) => (

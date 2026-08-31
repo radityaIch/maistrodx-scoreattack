@@ -374,34 +374,6 @@ export async function addCustomTrackAction(
 
   const effectiveImage = coverUrl || "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=800&q=80";
 
-  const sheet = await prisma.sheet.upsert({
-    where: {
-      songId_type_difficulty: {
-        songId,
-        type,
-        difficulty,
-      },
-    },
-    create: {
-      songId,
-      type,
-      difficulty,
-      level,
-      levelValue: Number(level) || 15,
-      internalLevel: level,
-      internalLevelValue: Number(level) || 15,
-      noteCounts: {},
-      regions: {},
-      version: "custom",
-    },
-    update: {
-      level,
-      levelValue: Number(level) || 15,
-      internalLevel: level,
-      internalLevelValue: Number(level) || 15,
-    },
-  });
-
   await prisma.song.upsert({
     where: { songId },
     create: {
@@ -429,6 +401,34 @@ export async function addCustomTrackAction(
         coverUrl: effectiveImage,
       },
       syncedAt: new Date(),
+    },
+  });
+
+  const sheet = await prisma.sheet.upsert({
+    where: {
+      songId_type_difficulty: {
+        songId,
+        type,
+        difficulty,
+      },
+    },
+    create: {
+      songId,
+      type,
+      difficulty,
+      level,
+      levelValue: Number(level) || 15,
+      internalLevel: level,
+      internalLevelValue: Number(level) || 15,
+      noteCounts: {},
+      regions: {},
+      version: "custom",
+    },
+    update: {
+      level,
+      levelValue: Number(level) || 15,
+      internalLevel: level,
+      internalLevelValue: Number(level) || 15,
     },
   });
 
