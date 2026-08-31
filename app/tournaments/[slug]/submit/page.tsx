@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTournamentBySlug } from "@/lib/dal/tournaments";
 import { listTournamentTracks, listPlayerSubmissions } from "@/lib/dal/submissions";
@@ -88,45 +89,65 @@ async function SubmitInner({
         </p>
       </header>
 
-      <ul className="space-y-4">
-        {trackForms.map((tf) => (
-          <li key={tf.trackId} className="card p-4">
-            <div className="mb-3 flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={jacketUrl(tf.song.imageName)}
-                alt=""
-                className="h-12 w-12 shrink-0 rounded object-cover"
-              />
-              <div className="min-w-0">
-                <div className="truncate font-medium">{tf.song.title}</div>
-                <div className="text-xs text-[color:var(--color-muted-foreground)]">
-                  {tf.song.artist} · {tf.sheet.type} · {tf.sheet.difficulty} · Lv{" "}
-                  {tf.sheet.level}
-                </div>
-              </div>
-              {tf.existing && (
-                <span
-                  className={`ml-auto rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                    tf.existing.status === "VERIFIED"
-                      ? "text-[color:var(--color-success)] border-[color:var(--color-success)]"
-                      : tf.existing.status === "REJECTED"
-                        ? "text-[color:var(--color-danger)] border-[color:var(--color-danger)]"
-                        : "text-[color:var(--color-warning)] border-[color:var(--color-warning)]"
-                  }`}
-                >
-                  {tf.existing.status.toLowerCase()}
-                </span>
-              )}
+      {trackForms.length === 0 ? (
+        <div className="card p-6">
+          <h2 className="text-display text-xl">No tracks available yet</h2>
+          <p className="mt-2 text-sm text-[color:var(--color-muted-foreground)]">
+            This tournament has no score tracks configured, so there are no submission
+            forms to display yet.
+          </p>
+          {session.user.role === "ADMIN" && (
+            <div className="mt-4">
+              <Link
+                href={`/admin/tournaments/${tournament.id}`}
+                className="inline-flex rounded-md border border-[color:var(--color-border)] px-3 py-2 text-sm hover:border-[color:var(--color-brand)]"
+              >
+                Edit tournament
+              </Link>
             </div>
-            <SubmitForm
-              action={tf.submitBound}
-              maxAchievementPct={tournament.maxAchievementPct}
-              existing={tf.existing}
-            />
-          </li>
-        ))}
-      </ul>
+          )}
+        </div>
+      ) : (
+        <ul className="space-y-4">
+          {trackForms.map((tf) => (
+            <li key={tf.trackId} className="card p-4">
+              <div className="mb-3 flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={jacketUrl(tf.song.imageName)}
+                  alt=""
+                  className="h-12 w-12 shrink-0 rounded object-cover"
+                />
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{tf.song.title}</div>
+                  <div className="text-xs text-[color:var(--color-muted-foreground)]">
+                    {tf.song.artist} · {tf.sheet.type} · {tf.sheet.difficulty} · Lv{" "}
+                    {tf.sheet.level}
+                  </div>
+                </div>
+                {tf.existing && (
+                  <span
+                    className={`ml-auto rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                      tf.existing.status === "VERIFIED"
+                        ? "text-[color:var(--color-success)] border-[color:var(--color-success)]"
+                        : tf.existing.status === "REJECTED"
+                          ? "text-[color:var(--color-danger)] border-[color:var(--color-danger)]"
+                          : "text-[color:var(--color-warning)] border-[color:var(--color-warning)]"
+                    }`}
+                  >
+                    {tf.existing.status.toLowerCase()}
+                  </span>
+                )}
+              </div>
+              <SubmitForm
+                action={tf.submitBound}
+                maxAchievementPct={tournament.maxAchievementPct}
+                existing={tf.existing}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

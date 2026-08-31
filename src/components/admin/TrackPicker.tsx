@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Search, Loader2 } from "lucide-react";
-import { jacketUrl } from "@/lib/maimai/image";
+import { Search, Loader2, Plus } from "lucide-react";
+import { jacketUrl, resolveTrackArtUrl } from "@/lib/maimai/image";
 
 type SongResult = {
   songId: string;
@@ -27,10 +27,37 @@ const DIFFICULTY_ORDER: Record<string, number> = {
 };
 const TYPE_ORDER: Record<string, number> = { std: 0, dx: 1 };
 
-export function TrackPicker({ onAdd }: { onAdd: (sheetId: string) => void }) {
+export type CustomTrackInput = {
+  title: string;
+  artist: string;
+  type: "std" | "dx";
+  difficulty: "basic" | "advanced" | "expert" | "master" | "remaster";
+  level: string;
+  coverUrl: string;
+  downloadUrl: string;
+};
+
+export function TrackPicker({
+  onAdd,
+  onAddCustom,
+}: {
+  onAdd: (sheetId: string) => void;
+  onAddCustom?: (payload: CustomTrackInput) => Promise<{ ok: boolean; error?: string }>;
+}) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SongResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [showCustom, setShowCustom] = useState(false);
+  const [customTitle, setCustomTitle] = useState("");
+  const [customArtist, setCustomArtist] = useState("AstroDX Community");
+  const [customType, setCustomType] = useState<"std" | "dx">("dx");
+  const [customDifficulty, setCustomDifficulty] = useState<
+    "basic" | "advanced" | "expert" | "master" | "remaster"
+  >("expert");
+  const [customLevel, setCustomLevel] = useState("15");
+  const [customCoverUrl, setCustomCoverUrl] = useState("");
+  const [customDownloadUrl, setCustomDownloadUrl] = useState("");
+  const [customSubmitting, setCustomSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Debounced server search via /api/maimai/search?q=...
@@ -54,7 +81,7 @@ export function TrackPicker({ onAdd }: { onAdd: (sheetId: string) => void }) {
   }, [q]);
 
   return (
-    <div>
+    <div className="space-y-4">
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--color-muted-foreground)]" />
         <input
@@ -69,11 +96,154 @@ export function TrackPicker({ onAdd }: { onAdd: (sheetId: string) => void }) {
         )}
       </div>
 
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setShowCustom((v) => !v)}
+          className="inline-flex items-center gap-2 rounded-md border border-[color:var(--color-border)] px-2.5 py-1.5 text-xs hover:border-[color:var(--color-brand)]"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {showCustom ? "Hide custom track" : "Add custom track"}
+        </button>
+      </div>
+
+      {showCustom && onAddCustom && (
+        <div className="rounded-md border border-[color:var(--color-border)] p-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor="custom-title">Song title</label>
+              <input
+                id="custom-title"
+                value={customTitle}
+                onChange={(e) => setCustomTitle(e.target.value)}
+                className="input"
+                placeholder="AstroDX - Galaxy Mix"
+              />
+            </div>
+            <div>
+              <label htmlFor="custom-artist">Artist</label>
+              <input
+                id="custom-artist"
+                value={customArtist}
+                onChange={(e) => setCustomArtist(e.target.value)}
+                className="input"
+                placeholder="AstroDX Community"
+              />
+            </div>
+            <div>
+              <label htmlFor="custom-level">Level</label>
+              <input
+                id="custom-level"
+                value={customLevel}
+                onChange={(e) => setCustomLevel(e.target.value)}
+                className="input"
+                placeholder="15"
+              />
+            </div>
+            <div>
+              <label htmlFor="custom-type">Type</label>
+              <select
+                id="custom-type"
+                value={customType}
+                onChange={(e) => setCustomType(e.target.value as "std" | "dx")}
+                className="input"
+              >
+                <option value="dx">dx</option>
+                <option value="std">std</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="custom-difficulty">Difficulty</label>
+              <select
+                id="custom-difficulty"
+                value={customDifficulty}
+                onChange={(e) =>
+                  setCustomDifficulty(
+                    e.target.value as
+                      | "basic"
+                      | "advanced"
+                      | "expert"
+                      | "master"
+                      | "remaster",
+                  )
+                }
+                className="input"
+              >
+                <option value="basic">basic</option>
+                <option value="advanced">advanced</option>
+                <option value="expert">expert</option>
+                <option value="master">master</option>
+                <option value="remaster">remaster</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="custom-cover">Cover jacket URL</label>
+              <input
+                id="custom-cover"
+                value={customCoverUrl}
+                onChange={(e) => setCustomCoverUrl(e.target.value)}
+                className="input"
+                placeholder="https://example.com/cover.jpg"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="custom-download">Download link</label>
+              <input
+                id="custom-download"
+                value={customDownloadUrl}
+                onChange={(e) => setCustomDownloadUrl(e.target.value)}
+                className="input"
+                placeholder="https://example.com/track.zip"
+              />
+            </div>
+          </div>
+
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              disabled={customSubmitting || !customTitle.trim()}
+              onClick={async () => {
+                if (!onAddCustom || !customTitle.trim()) return;
+                setCustomSubmitting(true);
+                try {
+                  const res = await onAddCustom({
+                    title: customTitle.trim(),
+                    artist: customArtist.trim() || "AstroDX Community",
+                    type: customType,
+                    difficulty: customDifficulty,
+                    level: customLevel.trim() || "15",
+                    coverUrl: customCoverUrl.trim(),
+                    downloadUrl: customDownloadUrl.trim(),
+                  });
+                  if (res.ok) {
+                    setShowCustom(false);
+                    setCustomTitle("");
+                    setCustomArtist("AstroDX Community");
+                    setCustomType("dx");
+                    setCustomDifficulty("expert");
+                    setCustomLevel("15");
+                    setCustomCoverUrl("");
+                    setCustomDownloadUrl("");
+                  } else if (res.error) {
+                    alert(res.error);
+                  }
+                } finally {
+                  setCustomSubmitting(false);
+                }
+              }}
+              className="btn btn-brand hover:bg-[#ff4d9d] disabled:opacity-50"
+            >
+              {customSubmitting ? "Adding…" : "Add custom track"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {q.trim().length > 0 && (
         <ul className="mt-2 max-h-80 overflow-y-auto rounded-md border border-[color:var(--color-border)]">
           {results.length === 0 && !searching ? (
             <li className="px-3 py-4 text-center text-sm text-[color:var(--color-muted-foreground)]">
-              No matches. (Run <code>/api/cron/sync</code> to populate catalog.)
+              No synced catalog matches. You can still add a custom AstroDX track below.
             </li>
           ) : (
             results.map((s) => (
@@ -81,7 +251,7 @@ export function TrackPicker({ onAdd }: { onAdd: (sheetId: string) => void }) {
                 <div className="flex items-start gap-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={jacketUrl(s.imageName)}
+                    src={resolveTrackArtUrl(s.imageName)}
                     alt=""
                     width={48}
                     height={48}

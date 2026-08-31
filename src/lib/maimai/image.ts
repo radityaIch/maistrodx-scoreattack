@@ -13,3 +13,24 @@ export function jacketUrl(imageName: string): string {
   const host = base ? base.replace(/\/$/, "") : "https://maimai.sega.com/storage/jacket";
   return `${host}/${imageName}`;
 }
+
+/** Accept either a maimai jacket filename or a direct image URL. */
+export function resolveTrackArtUrl(value: string | null | undefined): string {
+  const raw = value?.trim() ?? "";
+  if (!raw) return "";
+  return /^https?:\/\//i.test(raw) ? raw : jacketUrl(raw);
+}
+
+/** Stable custom-track ids for community or AstroDX entries. */
+export function customSongIdFromTitle(title: string): string {
+  const base = (title || "custom-track")
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+
+  return base ? `custom-${base}` : "custom-track";
+}

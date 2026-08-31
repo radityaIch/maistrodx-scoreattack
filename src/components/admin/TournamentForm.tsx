@@ -10,6 +10,7 @@ import {
   closeTournamentAction,
   updateTournamentAction,
   addTrackAction,
+  addCustomTrackAction,
   removeTrackAction,
 } from "@/lib/actions/tournament";
 import { uploadAssetAction } from "@/lib/actions/upload";
@@ -352,6 +353,11 @@ export function TournamentForm(props: TournamentFormProps) {
               const res = await addTrackAction(initial.id, sheetId);
               if (!res.ok) alert(res.error);
               router.refresh();
+            }}
+            onAddCustom={async (payload) => {
+              const res = await addCustomTrackAction(initial.id, payload);
+              if (res.ok) router.refresh();
+              return res;
             }}
           />
         </section>

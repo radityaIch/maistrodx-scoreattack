@@ -330,6 +330,130 @@ export async function addTrackAction(
   return { ok: true as const };
 }
 
+export async function addCustomTrackAction(
+  tournamentId: string,
+  payload: {
+    title: string;
+    artist?: string;
+    type?: "std" | "dx";
+    difficulty?: "basic" | "advanced" | "expert" | "master" | "remaster";
+    level?: string;
+    coverUrl?: string;
+    downloadUrl?: string;
+  },
+) {
+  await requireAdmin();
+
+  const title = payload.title?.trim();
+  const artist = (payload.artist ?? "AstroDX Community").trim() || "AstroDX Community";
+  const type = (payload.type ?? "dx");
+  const difficulty = (payload.difficulty ?? "expert");
+  const level = (payload.level ?? "15").trim() || "15";
+  const coverUrl = (payload.coverUrl ?? "").trim();
+  const downloadUrl = (payload.downloadUrl ?? "").trim();
+
+  if (!title || title.length < 2 || title.length > 140) {
+    return { ok: false as const, error: "title must be 2–140 chars" };
+  }
+  if (!/^(std|dx)$/.test(type)) {
+    return { ok: false as const, error: "type must be std or dx" };
+  }
+  if (
+    !/^(basic|advanced|expert|master|remaster)$/.test(difficulty)
+  ) {
+    return { ok: false as const, error: "difficulty invalid" };
+  }
+  if (!/^https?:\/\//i.test(coverUrl) && coverUrl) {
+    return { ok: false as const, error: "cover image must be an http(s) URL" };
+  }
+  if (downloadUrl && !/^https?:\/\//i.test(downloadUrl)) {
+    return { ok: false as const, error: "download link must be an http(s) URL" };
+  }
+
+  const songId = `custom-${title.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "track"}`;
+
+  const effectiveImage = coverUrl || "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=800&q=80";
+
+  const sheet = await prisma.sheet.upsert({
+    where: {
+      songId_type_difficulty: {
+        songId,
+        type,
+        difficulty,
+      },
+    },
+    create: {
+      songId,
+      type,
+      difficulty,
+      level,
+      levelValue: Number(level) || 15,
+      internalLevel: level,
+      internalLevelValue: Number(level) || 15,
+      noteCounts: {},
+      regions: {},
+      version: "custom",
+    },
+    update: {
+      level,
+      levelValue: Number(level) || 15,
+      internalLevel: level,
+      internalLevelValue: Number(level) || 15,
+    },
+  });
+
+  await prisma.song.upsert({
+    where: { songId },
+    create: {
+      songId,
+      title,
+      artist,
+      category: "CUSTOM",
+      imageName: effectiveImage,
+      version: "custom",
+      raw: {
+        custom: true,
+        downloadUrl: downloadUrl || null,
+        coverUrl: effectiveImage,
+      },
+      syncedAt: new Date(),
+    },
+    update: {
+      title,
+      artist,
+      category: "CUSTOM",
+      imageName: effectiveImage,
+      raw: {
+        custom: true,
+        downloadUrl: downloadUrl || null,
+        coverUrl: effectiveImage,
+      },
+      syncedAt: new Date(),
+    },
+  });
+
+  try {
+    await prisma.tournamentTrack.create({
+      data: {
+        tournamentId,
+        sheetId: sheet.id,
+        weight: "1.0",
+      },
+    });
+  } catch (e) {
+    if ((e as Error).message.includes("Unique constraint")) {
+      return { ok: false as const, error: "track already added" };
+    }
+    throw e;
+  }
+
+  updateTag(`tournament:${tournamentId}`);
+  updateTag(`tournament:${tournamentId}:tracks`);
+  revalidatePath(`/admin/tournaments/${tournamentId}`);
+  revalidatePath(`/tournaments/${(await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { slug: true } }))?.slug ?? ""}`);
+  return { ok: true as const };
+}
+
 /** Remove a track by id. Tournament is looked up so the cache tag is right. */
 export async function removeTrackAction(trackId: string) {
   await requireAdmin();
