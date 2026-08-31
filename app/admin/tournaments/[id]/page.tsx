@@ -39,7 +39,14 @@ async function EditInner({ params }: { params: Promise<{ id: string }> }) {
     include: {
       sheet: {
         include: {
-          song: { select: { title: true, artist: true, imageName: true } },
+          song: {
+            select: {
+              title: true,
+              artist: true,
+              imageName: true,
+              raw: true,
+            },
+          },
         },
       },
     },
@@ -84,6 +91,12 @@ async function EditInner({ params }: { params: Promise<{ id: string }> }) {
           id: tr.id,
           sheetId: tr.sheetId,
           weight: tr.weight.toString(),
+          downloadUrl:
+            typeof tr.sheet.song.raw === "object" && tr.sheet.song.raw !== null && "downloadUrl" in tr.sheet.song.raw
+              ? typeof tr.sheet.song.raw.downloadUrl === "string"
+                ? tr.sheet.song.raw.downloadUrl
+                : ""
+              : "",
           sheet: {
             type: tr.sheet.type,
             difficulty: tr.sheet.difficulty,

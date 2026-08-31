@@ -7,7 +7,6 @@
  */
 
 @theme inline {
-  /* colors */
   --color-background: #07060d;
   --color-foreground: #f5f3ff;
   --color-muted: #1e1b2e;
@@ -18,21 +17,21 @@
   --color-input: #1a1729;
   --color-ring: #ff2e88;
 
-  /* brand */
   --color-brand: #ff2e88;
   --color-brand-foreground: #ffffff;
   --color-accent: #00f0ff;
   --color-accent-foreground: #07060d;
-  --color-success: #4ade80;
-  --color-warning: #fbbf24;
-  --color-danger: #ef4444;
+  --color-success: #6be7a8;
+  --color-warning: #ffbc5a;
+  --color-danger: #ff5e75;
 
-  /* fonts (set via next/font in layout.tsx) */
+  --color-panel: #120f1d;
+  --color-panel-alt: #171426;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-russo-one), system-ui, sans-serif;
 
-  /* radii */
   --radius-sm: 0.25rem;
   --radius: 0.5rem;
   --radius-md: 0.75rem;
@@ -54,17 +53,21 @@ body {
   color: var(--color-foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+}
+
+html {
+  scroll-padding-top: 6rem;
 }
 
 body {
-  /* Subtle scanline + vignette overlay for the arcade vibe. */
   background-image:
-    radial-gradient(ellipse at top, rgba(255, 46, 136, 0.06), transparent 60%),
-    radial-gradient(ellipse at bottom, rgba(0, 240, 255, 0.05), transparent 60%),
+    radial-gradient(circle at top, rgba(255, 46, 136, 0.1), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(0, 240, 255, 0.08), transparent 30%),
     repeating-linear-gradient(
       to bottom,
-      rgba(255, 255, 255, 0.015) 0,
-      rgba(255, 255, 255, 0.015) 1px,
+      rgba(255, 255, 255, 0.014) 0,
+      rgba(255, 255, 255, 0.014) 1px,
       transparent 1px,
       transparent 3px
     );
@@ -115,12 +118,13 @@ body {
 }
 
 @utility btn-brand {
-  background: var(--color-brand);
+  background: linear-gradient(135deg, var(--color-brand) 0%, #ff5fa7 100%);
   color: var(--color-brand-foreground);
+  box-shadow: 0 16px 30px rgba(255, 46, 136, 0.2);
 }
 
 @utility btn-ghost {
-  background: transparent;
+  background: rgba(18, 15, 29, 0.7);
   color: var(--color-foreground);
   border-color: var(--color-border);
 }
@@ -143,4 +147,109 @@ body {
   letter-spacing: 0.06em;
   color: var(--color-muted-foreground);
   margin-bottom: 0.375rem;
+}
+
+@layer components {
+  .site-shell {
+    min-height: 100vh;
+    background: transparent;
+  }
+
+  .eyebrow {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--color-muted-foreground);
+  }
+
+  .arcade-panel {
+    background: linear-gradient(180deg, rgba(23, 20, 38, 0.9), rgba(17, 15, 29, 0.96));
+    border: 1px solid rgba(88, 79, 124, 0.6);
+    border-radius: 1.4rem;
+    box-shadow: 0 18px 36px rgba(5, 5, 12, 0.28);
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+  }
+
+  .chip-cyan {
+    color: var(--color-accent-foreground);
+    background: rgba(0, 240, 255, 0.82);
+  }
+
+  .chip-pink {
+    color: white;
+    background: rgba(255, 46, 136, 0.18);
+    border-color: rgba(255, 46, 136, 0.35);
+  }
+
+  .metric-box {
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    background: rgba(18, 15, 29, 0.8);
+    padding: 0.9rem 0.95rem;
+  }
+
+  .metric-label {
+    display: block;
+    font-size: 0.7rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-muted-foreground);
+  }
+
+  .metric-value {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--color-foreground);
+  }
+
+  .tournament-card {
+    background: linear-gradient(180deg, rgba(18, 15, 29, 0.92), rgba(17, 15, 29, 0.96));
+    border: 1px solid rgba(88, 79, 124, 0.6);
+    border-radius: 1.2rem;
+    box-shadow: 0 16px 32px rgba(5, 5, 12, 0.18);
+    transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+  }
+
+  .tournament-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 46, 136, 0.5);
+    box-shadow: 0 20px 38px rgba(255, 46, 136, 0.12);
+  }
+
+  .leaderboard-row {
+    display: grid;
+    grid-template-columns: 3rem 1fr auto auto;
+    align-items: center;
+    gap: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.9rem;
+    background: rgba(18, 15, 29, 0.8);
+    padding: 0.75rem 0.8rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .leaderboard-row {
+    grid-template-columns: 2.5rem 1fr auto;
+  }
+
+  .leaderboard-row .chip {
+    grid-column: 2 / span 2;
+    justify-self: start;
+  }
 }

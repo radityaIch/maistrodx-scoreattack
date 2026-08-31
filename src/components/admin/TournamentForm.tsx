@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -12,6 +11,7 @@ import {
   addTrackAction,
   addCustomTrackAction,
   removeTrackAction,
+  updateTrackDownloadUrlAction,
 } from "@/lib/actions/tournament";
 import { uploadAssetAction } from "@/lib/actions/upload";
 import { CloudinaryUploader } from "@/components/admin/CloudinaryUploader";
@@ -26,11 +26,17 @@ export type TrackRow = {
   id: string;
   sheetId: string;
   weight: string;
+  downloadUrl?: string;
   sheet: {
     type: string;
     difficulty: string;
     level: string;
-    song: { title: string; artist: string; imageName: string };
+    song: {
+      title: string;
+      artist: string;
+      imageName: string;
+      raw?: unknown | null;
+    };
   };
 };
 
@@ -97,7 +103,6 @@ function formatSelection(
 type ActionState = { ok: boolean; error?: string };
 
 export function TournamentForm(props: TournamentFormProps) {
-  const router = useRouter();
   const initial = props.tournament;
   const isEdit = props.mode === "edit" && initial;
 
@@ -145,7 +150,14 @@ export function TournamentForm(props: TournamentFormProps) {
   const [sectionsOrder, setSectionsOrder] = useState<string[]>(
     initial?.sectionsOrder ?? DEFAULT_SECTIONS,
   );
+  const [notice, setNotice] = useState<string | null>(null);
   const rulesetRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 2600);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const applyMarkdownFormat = (
     prefix: string,
@@ -221,7 +233,7 @@ export function TournamentForm(props: TournamentFormProps) {
     setStatusPending(true);
     try {
       const res = await publishTournamentAction(initial.id);
-      if (res.ok) router.refresh();
+      if (res.ok) setNotice("Tournament published successfully");
       else alert(res.error);
     } finally {
       setStatusPending(false);
@@ -233,7 +245,7 @@ export function TournamentForm(props: TournamentFormProps) {
     setStatusPending(true);
     try {
       const res = await closeTournamentAction(initial.id);
-      if (res.ok) router.refresh();
+      if (res.ok) setNotice("Tournament closed successfully");
       else alert(res.error);
     } finally {
       setStatusPending(false);
@@ -241,11 +253,10 @@ export function TournamentForm(props: TournamentFormProps) {
   };
 
   useEffect(() => {
-    if (updateState.ok && initial) {
-      const t = setTimeout(() => router.refresh(), 200);
-      return () => clearTimeout(t);
+    if (updateState.ok && !notice) {
+      setNotice("Changes saved successfully");
     }
-  }, [updateState.ok, router, initial]);
+  }, [updateState.ok, notice]);
 
   // Build FormData (sectionsOrder + theme JSON-encoded) -------------------
   function decorate(fd: FormData) {
@@ -263,14 +274,20 @@ export function TournamentForm(props: TournamentFormProps) {
   }
 
   return (
-    <form
-      action={(fd) => {
-        decorate(fd);
-        if (isEdit) updateFormAction(fd);
-        else createFormAction(fd);
-      }}
-      className="space-y-10"
-    >
+    <>
+      {notice && (
+        <div className="fixed right-5 top-5 z-50 rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-background)]/95 px-4 py-3 text-sm text-[color:var(--color-foreground)] shadow-2xl shadow-black/30 backdrop-blur-sm">
+          {notice}
+        </div>
+      )}
+      <form
+        action={(fd) => {
+          decorate(fd);
+          if (isEdit) updateFormAction(fd);
+          else createFormAction(fd);
+        }}
+        className="space-y-10"
+      >
       {(!isEdit && createState.error) || (isEdit && updateState.error) ? (
         <div className="card border-[color:var(--color-danger)] p-3 text-sm text-[color:var(--color-danger)]">
           {createState.error ?? updateState.error}
@@ -304,7 +321,7 @@ export function TournamentForm(props: TournamentFormProps) {
               name="slug"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
-              pattern="[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?"
+              pattern="^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
               className="input focus:outline-none focus:border-[color:var(--color-ring)] focus:shadow-[0_0_0_3px_rgba(255,46,136,0.25)]"
             />
           </div>
@@ -405,16 +422,16 @@ export function TournamentForm(props: TournamentFormProps) {
       {isEdit && initial && (
         <section className="card p-6 space-y-4">
           <h2 className="text-display text-lg">Tracks</h2>
-          <TrackList tracks={props.tracks ?? []} />
+          <TrackList tracks={props.tracks ?? []} onNotice={setNotice} />
           <TrackPicker
             onAdd={async (sheetId) => {
               const res = await addTrackAction(initial.id, sheetId);
-              if (!res.ok) alert(res.error);
-              router.refresh();
+              if (res.ok) setNotice("Track added successfully");
+              else alert(res.error);
             }}
             onAddCustom={async (payload) => {
               const res = await addCustomTrackAction(initial.id, payload);
-              if (res.ok) router.refresh();
+              if (res.ok) setNotice("Custom track added successfully");
               return res;
             }}
           />
@@ -603,50 +620,101 @@ export function TournamentForm(props: TournamentFormProps) {
         )}
       </div>
     </form>
+    </>
   );
 }
 
-function TrackList({ tracks }: { tracks: TrackRow[] }) {
-  const router = useRouter();
+function TrackList({
+  tracks,
+  onNotice,
+}: {
+  tracks: TrackRow[];
+  onNotice: (message: string) => void;
+}) {
   const [removing, setRemoving] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setDrafts((prev) => {
+      const next: Record<string, string> = {};
+      for (const tr of tracks) {
+        next[tr.id] = prev[tr.id] ?? tr.downloadUrl ?? "";
+      }
+      return next;
+    });
+  }, [tracks]);
+
   if (tracks.length === 0)
     return (
       <p className="text-sm text-[color:var(--color-muted-foreground)]">
         No tracks yet — add at least one below.
       </p>
     );
+
   return (
     <ul className="divide-y divide-[color:var(--color-border)] rounded-md border border-[color:var(--color-border)]">
-      {tracks.map((tr) => (
-        <li
-          key={tr.id}
-          className="flex items-center justify-between gap-3 px-4 py-3 text-sm"
-        >
-          <div className="min-w-0">
-            <div className="truncate font-medium">{tr.sheet.song.title}</div>
-            <div className="text-xs text-[color:var(--color-muted-foreground)]">
-              {tr.sheet.song.artist} · {tr.sheet.type} · {tr.sheet.difficulty} · Lv{" "}
-              {tr.sheet.level}
+      {tracks.map((tr) => {
+        const value = drafts[tr.id] ?? tr.downloadUrl ?? "";
+        return (
+          <li key={tr.id} className="px-4 py-3 text-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium">{tr.sheet.song.title}</div>
+                <div className="text-xs text-[color:var(--color-muted-foreground)]">
+                  {tr.sheet.song.artist} · {tr.sheet.type} · {tr.sheet.difficulty} · Lv {tr.sheet.level}
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={removing === tr.id}
+                onClick={async () => {
+                  setRemoving(tr.id);
+                  try {
+                    const res = await removeTrackAction(tr.id);
+                    if (res.ok) onNotice("Track removed successfully");
+                    else alert(res.error);
+                  } finally {
+                    setRemoving(null);
+                  }
+                }}
+                className="rounded-md px-2 py-1 text-xs text-[color:var(--color-danger)] hover:bg-[color:var(--color-muted)] disabled:opacity-50"
+              >
+                Remove
+              </button>
             </div>
-          </div>
-          <button
-            type="button"
-            disabled={removing === tr.id}
-            onClick={async () => {
-              setRemoving(tr.id);
-              try {
-                await removeTrackAction(tr.id);
-                router.refresh();
-              } finally {
-                setRemoving(null);
-              }
-            }}
-            className="rounded-md px-2 py-1 text-xs text-[color:var(--color-danger)] hover:bg-[color:var(--color-muted)] disabled:opacity-50"
-          >
-            Remove
-          </button>
-        </li>
-      ))}
+
+            <div className="mt-3">
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--color-muted-foreground)]">
+                Chart download link
+              </label>
+              <input
+                type="url"
+                value={value}
+                onChange={(e) =>
+                  setDrafts((prev) => ({
+                    ...prev,
+                    [tr.id]: e.target.value,
+                  }))
+                }
+                onBlur={async () => {
+                  const nextUrl = (drafts[tr.id] ?? value).trim();
+                  const prevUrl = (tr.downloadUrl ?? "").trim();
+                  if (nextUrl === prevUrl) return;
+
+                  const res = await updateTrackDownloadUrlAction(tr.id, nextUrl);
+                  if (res.ok) {
+                    onNotice("Chart link updated successfully");
+                  } else {
+                    alert(res.error);
+                  }
+                }}
+                placeholder="https://example.com/chart.zip"
+                className="input w-full focus:outline-none focus:border-[color:var(--color-ring)] focus:shadow-[0_0_0_3px_rgba(255,46,136,0.25)]"
+              />
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }

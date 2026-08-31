@@ -330,6 +330,51 @@ export async function addTrackAction(
   return { ok: true as const };
 }
 
+export async function updateTrackDownloadUrlAction(trackId: string, url: string) {
+  await requireAdmin();
+
+  const trimmed = url.trim();
+  if (trimmed !== "") {
+    const validHttp = /^https?:\/\//i.test(trimmed);
+    if (!validHttp) {
+      return { ok: false as const, error: "chart link must be a valid http(s) URL" };
+    }
+  }
+
+  const track = await prisma.tournamentTrack.findUnique({
+    where: { id: trackId },
+    select: {
+      sheetId: true,
+      sheet: {
+        select: {
+          songId: true,
+          song: {
+            select: {
+              raw: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!track) return { ok: false as const, error: "track not found" };
+
+  const currentRaw = (track.sheet.song.raw ?? {}) as Record<string, unknown>;
+  const nextRaw = {
+    ...currentRaw,
+    downloadUrl: trimmed === "" ? null : trimmed,
+  };
+
+  await prisma.song.update({
+    where: { songId: track.sheet.songId },
+    data: { raw: nextRaw },
+  });
+
+  updateTag(`tournament:${(await prisma.tournamentTrack.findUnique({ where: { id: trackId }, select: { tournamentId: true } }))?.tournamentId ?? ""}`);
+  return { ok: true as const };
+}
+
 export async function addCustomTrackAction(
   tournamentId: string,
   payload: {
