@@ -1,160 +1,487 @@
 # maistrodx score attack
 
-Community-run maimai score-attack tournament platform.
+maistrodx is a tournament platform for community maimai score competitions. It lets admins create tournaments, define scoring rules, add tracks, and review player submissions; it lets players log in, submit scores, and view public leaderboards.
 
-- **Stack:** Next.js 16 (App Router) · React 19 · TypeScript 5 · Tailwind 4 · Prisma 6 · PostgreSQL · Better Auth · Cloudinary
-- **Spec:** see [`PLAN.md`](./PLAN.md) (locked design + milestones)
-- **Implementation status:** all 5 milestones scaffolded. M1–M5 code in place; final integration requires real `.env` + DB to fully exercise.
+This project is built with Next.js 16, React 19, TypeScript, Tailwind CSS, Prisma, PostgreSQL, and Better Auth. The app is designed for private or community-run tournaments where leaderboard visibility, moderation, and transparent scoring rules matter.
 
 ---
 
-## Quick start
+## What this app does
+
+### Core functionality
+
+- Admin creates tournaments with:
+  - name, slug, description
+  - registration window and submission deadline
+  - scoring mode: aggregate or best N
+  - max achievement percentage cap
+  - theme settings: hero image, mascot, accent color, logo overlays, ruleset markdown
+- Admin adds tracks to a tournament from the synced maimai catalog or from a custom AstroDX/community track form.
+- Players sign in with Google.
+- Players submit achievements with:
+  - achievement percentage
+  - screenshot URL
+  - optional note
+- Submissions are moderated by admins before appearing publicly on leaderboards.
+- Public tournament pages show sections in an admin-defined order.
+- Leaderboards use the tournament scoring rule and tie-break logic.
+- Tournament submission windows auto-close when the deadline passes.
+
+### Public user flow
+
+1. User visits the landing page.
+2. User selects an open tournament.
+3. User sees tournament rules, track list, leaderboard, and results.
+4. If logged in, user can navigate to the submit page for that tournament.
+5. User adds a score submission and waits for admin approval.
+
+### Admin flow
+
+1. Admin signs in using a Google account whose email is in ADMIN_EMAILS.
+2. Admin creates or edits a tournament.
+3. Admin adds tracks and publishes the tournament.
+4. Admin moderates incoming submissions.
+5. Admin approves or rejects each entry.
+
+---
+
+## Technical overview
+
+### Stack
+
+- Next.js 16 App Router
+- React 19
+- TypeScript 5
+- Tailwind CSS 4
+- Prisma 6 + PostgreSQL
+- Better Auth for Google login and session handling
+- Cloudinary for asset storage and image uploads
+- Vitest for unit tests
+
+### Why the app is structured this way
+
+This repo intentionally separates concerns:
+
+- app/ contains routes and page composition
+- src/lib/actions/ holds server actions for mutations
+- src/lib/dal/ handles session and data access logic
+- src/lib/maimai/ handles catalog syncing and artwork URLs
+- prisma/schema.prisma defines the database schema
+- app/api routes handle cron jobs and external integrations
+
+This is a good pattern for a Next.js app because:
+
+- Server Actions keep database mutations close to the feature
+- Route handlers work well for cron jobs and API endpoints
+- DAL functions keep read logic consistent and reusable
+- Prisma handles the database model and relational constraints cleanly
+
+---
+
+## Main app features
+
+### Tournament publishing and lifecycle
+
+A tournament has a lifecycle:
+
+- DRAFT: not publicly visible
+- OPEN: accepting submissions
+- CLOSED: no longer accepting submissions
+- FINALIZED: completed and results locked
+
+Admins can publish or close a tournament from the admin edit form.
+
+### Ranking system
+
+The app supports two scoring approaches:
+
+- AGGREGATE: total all verified scores across tracks
+- BEST_N: sum the top N verified scores only
+
+Tie-breaking is also implemented:
+
+- total percentage desc
+- track count desc
+- earliest submission asc
+
+### Moderation model
+
+Submissions begin in PENDING state.
+
+- PENDING: not shown in public leaderboard
+- VERIFIED: counted in leaderboard and results
+- REJECTED: recorded with moderation reason and excluded from ranking
+
+### Search and catalog support
+
+The app has a maimai catalog sync feature that stores songs and sheets in the database for searching and tournament track assignment.
+
+It supports:
+
+- official synced catalog entries
+- custom track entries for AstroDX or community-made tracks
+- custom cover URL and download URL for a custom track
+
+---
+
+## Project structure
+
+```text
+.
+├── app/
+│   ├── admin/
+│   ├── api/
+│   ├── me/
+│   ├── tournaments/
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx
+├── prisma/
+│   ├── schema.prisma
+│   └── seed.ts
+├── src/
+│   ├── components/
+│   ├── lib/
+│   └── __tests__/
+├── public/
+├── .env
+├── .env.example
+├── next.config.ts
+├── package.json
+├── pnpm-lock.yaml
+├── PLAN.md
+├── README.md
+└── tsconfig.json
+```
+
+---
+
+## Local development prerequisites
+
+Before running the app on your local machine, install:
+
+- Node.js 20 or newer
+- pnpm
+- PostgreSQL 16 or newer
+- Git
+- A Google account for OAuth testing
+
+On Windows, this is usually easiest with:
+
+- Node.js LTS from nodejs.org
+- PostgreSQL installed locally or via Docker
+- Git Bash / PowerShell / VS Code terminal
+
+---
+
+## One-time environment setup
+
+Create a file named .env in the project root and fill it with values like this:
+
+```dotenv
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/maistrodx?schema=public"
+BETTER_AUTH_URL="http://localhost:3000"
+BETTER_AUTH_SECRET="replace-with-long-random-string"
+BETTER_AUTH_API_KEY="optional-for-local-dev"
+
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
+
+ADMIN_EMAILS="your-email@example.com"
+
+MAIMAI_CF_BASE_URL="https://dp4p6x0xfi5o9.cloudfront.net/maimai"
+MAIMAI_IMAGE_BASE_URL="https://dp4p6x0xfi5o9.cloudfront.net/maimai/img/cover/"
+NEXT_PUBLIC_MAIMAI_IMAGE_BASE_URL="https://dp4p6x0xfi5o9.cloudfront.net/maimai/img/cover/"
+MAIMAI_CRON_SECRET="replace-with-a-random-secret"
+
+CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+CLOUDINARY_FOLDER="maistrodx"
+
+NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="replace-with-long-random-string"
+DISCORD_CLIENT_ID=""
+DISCORD_CLIENT_SECRET=""
+```
+
+Important notes:
+
+- The value of ADMIN_EMAILS must match the email you use to sign in with Google.
+- BETTER_AUTH_SECRET and NEXT_SERVER_ACTIONS_ENCRYPTION_KEY should be random secure strings.
+- You can generate a secure value with:
 
 ```bash
-# 1. Install deps
+openssl rand -base64 32
+```
+
+On Windows PowerShell, you can also generate secrets with:
+
+```powershell
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Max 256 }))
+```
+
+---
+
+## Database setup
+
+### Option 1: Local PostgreSQL
+
+If you have PostgreSQL installed locally, create a database:
+
+```sql
+CREATE DATABASE maistrodx;
+```
+
+Then point DATABASE_URL to it.
+
+### Option 2: Docker PostgreSQL (recommended if you want a quick local database)
+
+From the project root:
+
+```bash
+docker run --name maistrodx-db -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=maistrodx -p 5432:5432 -d postgres:16
+```
+
+Then use:
+
+```dotenv
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/maistrodx?schema=public"
+```
+
+---
+
+## Install dependencies
+
+In the project root:
+
+```bash
 pnpm install
+```
 
-# 2. Configure env
-cp .env.example .env
-# fill in DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32),
-# GOOGLE_CLIENT_ID/SECRET, ADMIN_EMAILS, MAIMAI_IMAGE_BASE_URL, etc.
+If you are on Windows PowerShell:
 
-# 3. Generate Prisma client + run first migration
+```powershell
+cd C:\path\to\maistrodx-scoreattack
+pnpm install
+```
+
+---
+
+## Generate Prisma client and initialize database
+
+Run these commands once after the database is ready:
+
+```bash
 pnpm db:generate
 pnpm db:migrate --name init
+```
 
-# 4. Seed demo data
+This will generate the Prisma client and apply the schema to PostgreSQL.
+
+---
+
+## Seed demo data
+
+This creates a demo admin user and a sample tournament so the app has data to show immediately:
+
+```bash
 pnpm db:seed
+```
 
-# 5. Dev server
+If you want a fresh local database, you can reset it with:
+
+```bash
+pnpm db:reset
+```
+
+This destroys the data and reseeds it.
+
+---
+
+## Run the app locally
+
+Start the dev server:
+
+```bash
 pnpm dev
 ```
 
-Open <http://localhost:3000> → sign in with Google (your email must be in `ADMIN_EMAILS`) → `/admin/tournaments/new`.
+Then open:
+
+- http://localhost:3000
+
+From there:
+
+- sign in with Google
+- ensure the signed-in email is included in ADMIN_EMAILS
+- open the admin area or create a tournament
+
+Typical admin route:
+
+- /admin/tournaments/new
+
+Typical public routes:
+
+- /
+- /tournaments/<slug>
+- /tournaments/<slug>/submit
+- /tournaments/<slug>/leaderboard
 
 ---
 
-## Scripts
-
-| Command | What |
-|---|---|
-| `pnpm dev` | Next dev server |
-| `pnpm build` | Production build (requires reachable `DATABASE_URL`) |
-| `pnpm start` | Run the built app |
-| `pnpm lint` | ESLint |
-| `pnpm typecheck` | TypeScript no-emit check |
-| `pnpm test` | Vitest unit tests (3 files / 8 tests) |
-| `pnpm db:generate` | Regenerate Prisma client |
-| `pnpm db:migrate` | Run migrations (dev) |
-| `pnpm db:studio` | Prisma Studio |
-| `pnpm db:seed` | Seed admin + demo tournament |
-| `pnpm db:reset` | Reset + reseed (destroys data) |
-
----
-
-## Architecture (high-level)
-
-| Concern | Where |
-|---|---|
-| Routing | `app/` (App Router) |
-| Server Actions | `src/lib/actions/*` (`'use server'`) |
-| DAL + auth | `src/lib/dal/*` + `src/lib/auth.ts` |
-| DB client | `src/lib/db.ts` (Prisma singleton) |
-| maimai sync | `src/lib/maimai/sync.ts` + `app/api/cron/sync/route.ts` |
-| Section composer | `src/lib/sections/registry.tsx` + 6 components |
-| Tests | `src/__tests__/` |
-| Schema | `prisma/schema.prisma` |
-
-### Why Next.js 16 + cacheComponents?
-
-The plan uses `'use cache'` + `cacheTag('tournament:<id>')` for read-your-writes invalidation across Server Actions. cacheComponents (Next 16's stable name for the new caching model) is required for those directives.
-
-Conventions:
-- All `cookies()` / `headers()` / `params` reads are wrapped in `<Suspense>` so the page shell can prerender statically.
-- Pages with `'use cache'` DAL reads return tagged data; mutations `updateTag(...)` to invalidate.
-- `proxy.ts` (was `middleware.ts` in Next ≤15) is an *optimistic* redirect for `/me`, `/admin`; the DAL `requireAdmin()` is the real gate.
-
-### Auth + admin gating
-
-- **Better Auth** with Google social provider, DB sessions (`prismaAdapter`).
-- **Admin** is gated by `ADMIN_EMAILS` (comma-separated env) — checked in `verifySession()` on every request.
-- All Server Actions call `requireSession()` / `requireAdmin()` first; UI gates are decorative.
-
-### Data model (Prisma)
-
-See [`prisma/schema.prisma`](./prisma/schema.prisma). Key shapes:
-
-- `Tournament` — slug, status (`DRAFT/OPEN/CLOSED/FINALIZED`), scoring rule (`AGGREGATE` or `BEST_N`), max achievement %, theme fields.
-- `TournamentTrack` — pivot to `Sheet` (one tournament ↔ many sheets).
-- `ScoreSubmission` — `(playerId, trackId)` unique → upsert target. `achievementPct Decimal(5,2)`, `screenshotUrl` NOT NULL, `status PENDING/VERIFIED/REJECTED`.
-- `AuditLog` — every mutation logs `(actorId, action, targetType, targetId, payload)`.
-
-### Ranking (PLAN §8b)
-
-- **AGGREGATE** — sum every track best per player.
-- **BEST_N** — sum top N per player (ROW_NUMBER partition).
-- **Tie-break** — total % DESC → tracks DESC → earliest submission ASC. Two-way ties shown as shared rank.
-
-Both queries use the `@@index([tournamentId, sheetId, achievementPct DESC])` index for a single index range scan.
-
-### Submission Server Action (`submitScoreAction`, PLAN §8a)
-
-Order of checks:
-1. `requireSession()`
-2. shape (`achievementPct ∈ [0, 101]`, `screenshotUrl` image URL)
-3. track in tournament, status OPEN, now in `[registrationOpensAt, submissionDeadline]`
-4. `achievementPct ≤ tournament.maxAchievementPct`
-5. rate limit ≤ 10 / rolling hour per player
-6. `prisma.scoreSubmission.upsert({ where: { playerId_trackId } })`
-7. `updateTag(...)` to invalidate caches + `prisma.auditLog.create(...)`
-
----
-
-## Deploying
-
-### Vercel + Neon (recommended for free tier)
-
-1. Create a Neon Postgres project → copy the connection string to Vercel env as `DATABASE_URL`.
-2. Create a Google OAuth client (https://console.cloud.google.com) → set Authorized redirect URI to `https://<your-domain>/api/auth/callback/google`. Copy `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` into Vercel env.
-3. Create a Cloudinary account → copy `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`.
-4. Set `BETTER_AUTH_SECRET` (`openssl rand -base64 32`), `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` (same), and `ADMIN_EMAILS` (your email).
-5. Set `MAIMAI_IMAGE_BASE_URL` + `NEXT_PUBLIC_MAIMAI_IMAGE_BASE_URL` to your community proxy.
-6. Add Vercel Cron entries:
-   - `POST /api/cron/sync` every 6h with header `x-cron-secret: $MAIMAI_CRON_SECRET`
-   - `POST /api/cron/close` every hour with the same secret
-
-### First-run checklist
-
-- [ ] `pnpm db:migrate --name init` runs clean against Neon
-- [ ] `pnpm db:seed` produces the demo tournament
-- [ ] Sign in with Google (your email in `ADMIN_EMAILS`)
-- [ ] `/admin/tournaments/new` loads
-- [ ] Running `POST /api/cron/sync` with the secret populates the catalog
-- [ ] Create a real tournament + submit a score + verify in `/admin/tournaments/[id]/moderate`
-
----
-
-## Things deliberately out of scope (PLAN §14)
-
-- Drag-drop section reordering (↑/↓ buttons only)
-- Live iframe preview (RSC re-render is fast enough)
-- Markdown WYSIWYG (textarea + live preview pane)
-- Per-section backgrounds, custom CSS, multiple pages per tournament
-- Real-time websockets, OCR / anti-cheat, dispute UI, mobile-native, i18n
-- Discord bot, multi-game (CHUNITHM/ONGEKI), prize integration
-
----
-
-## Testing
+## Useful scripts
 
 ```bash
+pnpm dev
+pnpm build
+pnpm start
+pnpm lint
+pnpm typecheck
 pnpm test
+pnpm db:generate
+pnpm db:migrate
+pnpm db:studio
+pnpm db:seed
+pnpm db:reset
 ```
 
-3 test files (Vitest, mocks `server-only` + Prisma):
+### What each does
 
-- `ranking.test.ts` — AGGREGATE ordering, empty result, tie-break contract.
-- `deadline.test.ts` — `submitScoreAction` rejects past-deadline + non-OPEN.
-- `scoreRule.test.ts` — `createTournamentAction` validates `BEST_N` requires `bestN`, rejects out-of-range.
+- dev: starts Next.js in development mode
+- build: does a production build
+- start: runs the built app
+- lint: runs ESLint
+- typecheck: TypeScript validation
+- test: runs Vitest
+- db:generate: regenerates Prisma client
+- db:migrate: applies schema migrations
+- db:studio: opens Prisma Studio
+- db:seed: seeds sample data
+- db:reset: full reset + reseed
 
-Integration / e2e tests are out of scope (no DB or browser in the unit test suite). The build does include a TS + lint pass.
+---
+
+## Google OAuth setup
+
+To sign in locally, you need a Google OAuth client.
+
+1. Go to Google Cloud Console
+2. Create a project
+3. Enable Google Identity / OAuth
+4. Create OAuth credentials
+5. Add the redirect URI:
+
+```text
+http://localhost:3000/api/auth/callback/google
+```
+
+Then copy the Client ID and Secret into your .env file.
+
+If you are using the app in a different local host or port, add the correct callback URL there as well.
+
+---
+
+## maimai catalog sync
+
+The app can sync song data using the maimai catalog source configured in MAIMAI_CF_BASE_URL.
+
+The sync route is:
+
+- /api/cron/sync
+
+This is typically triggered by cron or manually during local testing. It populates the database with song and sheet records so admins can search and attach tracks.
+
+The route is protected by MAIMAI_CRON_SECRET in production, but in local development it is easier to trigger manually if needed.
+
+---
+
+## Production build
+
+Before deploying or building for production, make sure:
+
+- DATABASE_URL is reachable
+- Google OAuth values are valid
+- Cloudinary credentials are set
+- ADMIN_EMAILS is correct
+- better-auth secrets are secure
+
+Then run:
+
+```bash
+pnpm build
+pnpm start
+```
+
+---
+
+## Troubleshooting
+
+### Sign-in flow fails
+
+- Confirm GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are valid.
+- Confirm the redirect URI is exactly:
+
+```text
+http://localhost:3000/api/auth/callback/google
+```
+
+- Confirm your Google email is listed in ADMIN_EMAILS.
+
+### Database connection error
+
+- Check that PostgreSQL is running.
+- Check your DATABASE_URL string.
+- Ensure the database exists and credentials are correct.
+
+### Admin page is blocked
+
+- Your email must match exactly one of the values in ADMIN_EMAILS.
+- Email comparison is case-insensitive in the app, but it still must match the actual Google account email.
+
+### No tracks appear in the tournament builder
+
+- The maimai catalog may not yet be synced.
+- Run the catalog sync or add a custom AstroDX/community track.
+
+### Score submission fails
+
+- Confirm the tournament is OPEN.
+- Confirm the current time is between registration opens and submission deadline.
+- Confirm the screenshot URL is a valid image URL.
+- Confirm the achievement value is within the allowed range.
+
+---
+
+## Notes for this project
+
+This app is a lightweight but complete tournament system aimed at community score events. It is intentionally simple and fast rather than broad or over-engineered.
+
+The primary goal is:
+
+- fair tournament management
+- transparent score validation
+- simple player experience
+- admin moderation and leaderboard fairness
+
+---
+
+## License
+
+This project is for local community use unless otherwise specified by the repository owner.
+
+---
+
+## References
+
+- Project plan: PLAN.md
+- Prisma schema: prisma/schema.prisma
+- Application routes: app/
+- Server actions: src/lib/actions/
+- Data layer: src/lib/dal/
+
+If you want, I can also create a second version of the README tailored specifically for:
+
+1. GitHub repo presentation
+2. deployment on Vercel
+3. a Windows-only local setup guide
+4. a technical architecture doc with diagrams
