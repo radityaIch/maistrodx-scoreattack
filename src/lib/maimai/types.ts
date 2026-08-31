@@ -25,9 +25,11 @@ export type MaimaiRawSheet = {
 };
 
 export type MaimaiRawSong = {
+  songId?: string;
   title: string;
   artist: string;
-  catcode: string; // category (e.g. "POPS", "GAME", "maimai")
+  category?: string;
+  catcode?: string; // legacy fallback for some mirrors / older payloads
   imageName: string;
   version: string;
   releaseDate?: string; // ISO yyyy-mm-dd
@@ -39,6 +41,24 @@ export type MaimaiRawSong = {
 export type MaimaiDataFile = {
   songs: MaimaiRawSong[];
 };
+
+export function normalizeMaimaiSong(raw: MaimaiRawSong) {
+  const songId = String(raw.songId ?? raw.title ?? "unknown-song").trim();
+  const category = String(raw.category ?? raw.catcode ?? "UNKNOWN").trim() || "UNKNOWN";
+
+  return {
+    songId,
+    title: String(raw.title ?? "").trim(),
+    artist: String(raw.artist ?? "").trim(),
+    category,
+    imageName: String(raw.imageName ?? "").trim(),
+    version: String(raw.version ?? "").trim(),
+    releaseDate: raw.releaseDate ? new Date(raw.releaseDate) : null,
+    isNew: Boolean(raw.isNew),
+    isLocked: Boolean(raw.isLocked),
+    raw,
+  };
+}
 
 /** Sheet difficulty display order (for stable sorting in pickers). */
 export const DIFFICULTY_ORDER: MaimaiDifficulty[] = [

@@ -2,7 +2,7 @@ import "server-only";
 import { cacheTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { serverEnv } from "@/lib/env";
-import type { MaimaiDataFile } from "@/lib/maimai/types";
+import { normalizeMaimaiSong, type MaimaiDataFile } from "@/lib/maimai/types";
 
 /**
  * Sync the local DB with the upstream CloudFront maimai data.json (PLAN §7).
@@ -35,33 +35,34 @@ export async function syncMaimaiCatalog(): Promise<{
   let upsertedSheets = 0;
 
   for (const raw of data.songs) {
-    const songId = raw.title; // per PLAN: title is the songId key
+    const normalized = normalizeMaimaiSong(raw);
+    const songId = normalized.songId;
     await prisma.song.upsert({
       where: { songId },
       create: {
         songId,
-        title: raw.title,
-        artist: raw.artist,
-        category: raw.catcode,
-        imageName: raw.imageName,
-        version: raw.version,
-        releaseDate: raw.releaseDate ? new Date(raw.releaseDate) : null,
-        isNew: Boolean(raw.isNew),
-        isLocked: Boolean(raw.isLocked),
-        raw: raw as unknown as object,
+        title: normalized.title,
+        artist: normalized.artist,
+        category: normalized.category,
+        imageName: normalized.imageName,
+        version: normalized.version,
+        releaseDate: normalized.releaseDate,
+        isNew: normalized.isNew,
+        isLocked: normalized.isLocked,
+        raw: normalized.raw as unknown as object,
         syncedAt: new Date(),
       },
       update: {
         // Only update mutable fields; preserve `syncedAt` history direction.
-        title: raw.title,
-        artist: raw.artist,
-        category: raw.catcode,
-        imageName: raw.imageName,
-        version: raw.version,
-        releaseDate: raw.releaseDate ? new Date(raw.releaseDate) : null,
-        isNew: Boolean(raw.isNew),
-        isLocked: Boolean(raw.isLocked),
-        raw: raw as unknown as object,
+        title: normalized.title,
+        artist: normalized.artist,
+        category: normalized.category,
+        imageName: normalized.imageName,
+        version: normalized.version,
+        releaseDate: normalized.releaseDate,
+        isNew: normalized.isNew,
+        isLocked: normalized.isLocked,
+        raw: normalized.raw as unknown as object,
         syncedAt: new Date(),
       },
     });

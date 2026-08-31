@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -78,6 +78,22 @@ const toLocalDatetime = (d: Date | string) => {
   return local.toISOString().slice(0, 16);
 };
 
+function formatSelection(
+  value: string,
+  start: number,
+  end: number,
+  prefix: string,
+  suffix = prefix,
+  placeholder = "text",
+) {
+  const selected = value.slice(start, end) || placeholder;
+  return {
+    next: `${value.slice(0, start)}${prefix}${selected}${suffix}${value.slice(end)}`,
+    cursorStart: start + prefix.length,
+    cursorEnd: start + prefix.length + selected.length,
+  };
+}
+
 type ActionState = { ok: boolean; error?: string };
 
 export function TournamentForm(props: TournamentFormProps) {
@@ -129,6 +145,48 @@ export function TournamentForm(props: TournamentFormProps) {
   const [sectionsOrder, setSectionsOrder] = useState<string[]>(
     initial?.sectionsOrder ?? DEFAULT_SECTIONS,
   );
+  const rulesetRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const applyMarkdownFormat = (
+    prefix: string,
+    suffix = prefix,
+    placeholder = "text",
+  ) => {
+    const el = rulesetRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const { next, cursorStart, cursorEnd } = formatSelection(
+      rulesetMarkdown,
+      start,
+      end,
+      prefix,
+      suffix,
+      placeholder,
+    );
+    setRuleset(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(cursorStart, cursorEnd);
+    });
+  };
+
+  const insertBlock = (block: string) => {
+    const el = rulesetRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const before = rulesetMarkdown.slice(0, start);
+    const after = rulesetMarkdown.slice(end);
+    const selection = rulesetMarkdown.slice(start, end) || "text";
+    const next = `${before}${block.replace("{text}", selection)}${after}`;
+    setRuleset(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const index = before.length + block.indexOf("{text}") + selection.length;
+      el.setSelectionRange(index, index);
+    });
+  };
 
   // Server Actions --------------------------------------------------------
   const createBound = async (
@@ -452,16 +510,40 @@ export function TournamentForm(props: TournamentFormProps) {
           <label htmlFor="rulesetMarkdown">
             Ruleset (markdown)
           </label>
+          <div className="mb-3 flex flex-wrap gap-2">
+            <button type="button" onClick={() => applyMarkdownFormat("**", "**", "bold text")} className="rounded border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:border-[color:var(--color-ring)]">
+              Bold
+            </button>
+            <button type="button" onClick={() => applyMarkdownFormat("*", "*", "italic text")} className="rounded border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:border-[color:var(--color-ring)]">
+              Italic
+            </button>
+            <button type="button" onClick={() => insertBlock("\n## {text}\n")} className="rounded border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:border-[color:var(--color-ring)]">
+              H2
+            </button>
+            <button type="button" onClick={() => insertBlock("\n- {text}\n")} className="rounded border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:border-[color:var(--color-ring)]">
+              List
+            </button>
+            <button type="button" onClick={() => insertBlock("\n1. {text}\n")} className="rounded border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:border-[color:var(--color-ring)]">
+              Number
+            </button>
+            <button type="button" onClick={() => insertBlock("\n> {text}\n")} className="rounded border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:border-[color:var(--color-ring)]">
+              Quote
+            </button>
+            <button type="button" onClick={() => applyMarkdownFormat("[", "](https://example.com)", "link text")} className="rounded border border-[color:var(--color-border)] bg-[color:var(--color-input)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:border-[color:var(--color-ring)]">
+              Link
+            </button>
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
             <textarea
+              ref={rulesetRef}
               id="rulesetMarkdown"
               value={rulesetMarkdown}
               onChange={(e) => setRuleset(e.target.value)}
               rows={10}
-              className="input font-mono text-xs focus:outline-none focus:border-[color:var(--color-ring)] focus:shadow-[0_0_0_3px_rgba(255,46,136,0.25)]"
+              className="input min-h-[260px] resize-y font-mono text-xs leading-6 focus:outline-none focus:border-[color:var(--color-ring)] focus:shadow-[0_0_0_3px_rgba(255,46,136,0.25)]"
               placeholder="# Rules&#10;&#10;1. Be nice.&#10;2. No cheating."
             />
-            <div className="card p-4 prose prose-invert max-w-none text-sm">
+            <div className="card prose prose-invert prose-sm max-w-none rounded-xl border border-white/10 bg-[#120f1d]/80 p-4 text-sm text-white/90">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {rulesetMarkdown || "_Nothing yet — preview will appear here._"}
               </ReactMarkdown>

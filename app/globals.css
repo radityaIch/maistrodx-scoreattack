@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /* ============================================================================
  * maimai score-attack — dark arcade theme tokens (PLAN §4 app shell)

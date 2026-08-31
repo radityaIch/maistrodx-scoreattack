@@ -5,9 +5,14 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
 
   images: {
-    // Cloudinary asset host (PLAN decision #9).
-    // maimai jacket community proxy host is configured per-deploy in code (see src/lib/maimai/image.ts).
-    remotePatterns: [{ protocol: "https", hostname: "res.cloudinary.com" }],
+    // Allow official maimai CDN and community asset hosts used by track art.
+    remotePatterns: [
+      { protocol: "https", hostname: "res.cloudinary.com" },
+      { protocol: "https", hostname: "dp4p6x0xfi5o9.cloudfront.net" },
+      { protocol: "https", hostname: "maimai.sega.com" },
+      { protocol: "https", hostname: "images.unsplash.com" },
+      { protocol: "https", hostname: "majdata.net" },
+    ],
   },
 
   // Allow Server Actions up to 2 MB (admin image uploads via base64 data URL).

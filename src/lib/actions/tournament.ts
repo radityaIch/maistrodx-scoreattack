@@ -363,11 +363,14 @@ export async function addCustomTrackAction(
   ) {
     return { ok: false as const, error: "difficulty invalid" };
   }
-  if (!/^https?:\/\//i.test(coverUrl) && coverUrl) {
-    return { ok: false as const, error: "cover image must be an http(s) URL" };
+  const looksLikeNextImageProxy = (value: string) =>
+    /^\/_next\/image\?/i.test(value) || /%2F_next%2Fimage%3F/i.test(value);
+
+  if (coverUrl && (!/^https?:\/\//i.test(coverUrl) || looksLikeNextImageProxy(coverUrl))) {
+    return { ok: false as const, error: "cover image must be a raw http(s) URL, not a generated /_next/image URL" };
   }
-  if (downloadUrl && !/^https?:\/\//i.test(downloadUrl)) {
-    return { ok: false as const, error: "download link must be an http(s) URL" };
+  if (downloadUrl && (!/^https?:\/\//i.test(downloadUrl) || looksLikeNextImageProxy(downloadUrl))) {
+    return { ok: false as const, error: "download link must be a raw http(s) URL, not a generated /_next/image URL" };
   }
 
   const songId = `custom-${title.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "track"}`;

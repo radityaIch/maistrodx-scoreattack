@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { syncMaimaiCatalog } from "@/lib/maimai/sync";
-import { updateTag } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { serverEnv } from "@/lib/env";
 
 /**
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   }
   try {
     const result = await syncMaimaiCatalog();
-    updateTag("maimai:songs"); // immediate invalidation
+    revalidateTag("maimai:songs", "max"); // invalidates cached song reads from route handlers
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     return NextResponse.json(

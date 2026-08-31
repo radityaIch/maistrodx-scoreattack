@@ -6,7 +6,7 @@ import { listTournamentTracks, listPlayerSubmissions } from "@/lib/dal/submissio
 import { verifySession } from "@/lib/dal/session";
 import { submitScoreAction } from "@/lib/actions/submission";
 import { SubmitForm } from "@/components/SubmitForm";
-import { jacketUrl } from "@/lib/maimai/image";
+import { resolveTrackArtUrl } from "@/lib/maimai/image";
 
 export default async function SubmitPage({
   params,
@@ -114,9 +114,9 @@ async function SubmitInner({
               <div className="mb-3 flex items-center gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={jacketUrl(tf.song.imageName)}
+                  src={resolveTrackArtUrl(tf.song.imageName)}
                   alt=""
-                  className="h-12 w-12 shrink-0 rounded object-cover"
+                  className="aspect-square h-12 w-12 shrink-0 rounded object-cover"
                 />
                 <div className="min-w-0">
                   <div className="truncate font-medium">{tf.song.title}</div>

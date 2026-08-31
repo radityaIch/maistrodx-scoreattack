@@ -13,10 +13,10 @@ export const auth = betterAuth({
   // schema's required `issuer` column.
   emailAndPassword: { enabled: true },
   socialProviders: {
-    discord: {
-      clientId: process.env.DISCORD_CLIENT_ID!,
-      clientSecret: process.env.DISCORD_CLIENT_SECRET!,
-    },
+    // discord: {
+    //   clientId: process.env.DISCORD_CLIENT_ID!,
+    //   clientSecret: process.env.DISCORD_CLIENT_SECRET!,
+    // },
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,

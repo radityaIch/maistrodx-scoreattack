@@ -7,17 +7,23 @@ export async function getTournamentTrack(
   tournamentId: string,
   trackId: string,
 ) {
-  return prisma.tournamentTrack.findFirst({
+  const track = await prisma.tournamentTrack.findFirst({
     where: { id: trackId, tournamentId },
     include: { sheet: { include: { song: true } } },
   });
+
+  if (!track) return null;
+  return {
+    ...track,
+    weight: track.weight.toString(),
+  };
 }
 
 /** List all tracks + sheet info for a tournament (used by submit + admin). */
 export async function listTournamentTracks(tournamentId: string) {
   "use cache";
   cacheTag(`tournament:${tournamentId}:tracks`);
-  return prisma.tournamentTrack.findMany({
+  const tracks = await prisma.tournamentTrack.findMany({
     where: { tournamentId },
     orderBy: { id: "asc" },
     include: {
@@ -30,6 +36,11 @@ export async function listTournamentTracks(tournamentId: string) {
       },
     },
   });
+
+  return tracks.map((track) => ({
+    ...track,
+    weight: track.weight.toString(),
+  }));
 }
 
 /** List a player's submissions on a tournament (used by submit UI pre-fill). */
@@ -39,7 +50,7 @@ export async function listPlayerSubmissions(
 ) {
   "use cache";
   cacheTag(`tournament:${tournamentId}:subs:${playerId}`);
-  return prisma.scoreSubmission.findMany({
+  const submissions = await prisma.scoreSubmission.findMany({
     where: { tournamentId, playerId },
     select: {
       id: true,
@@ -50,11 +61,16 @@ export async function listPlayerSubmissions(
       submittedAt: true,
     },
   });
+
+  return submissions.map((submission) => ({
+    ...submission,
+    achievementPct: submission.achievementPct.toString(),
+  }));
 }
 
 /** Pending moderation queue for an admin. */
 export async function listPendingSubmissions(tournamentId: string) {
-  return prisma.scoreSubmission.findMany({
+  const submissions = await prisma.scoreSubmission.findMany({
     where: { tournamentId, status: "PENDING" },
     orderBy: { submittedAt: "asc" },
     include: {
@@ -62,4 +78,9 @@ export async function listPendingSubmissions(tournamentId: string) {
       sheet: { include: { song: { select: { title: true, imageName: true } } } },
     },
   });
+
+  return submissions.map((submission) => ({
+    ...submission,
+    achievementPct: submission.achievementPct.toString(),
+  }));
 }
